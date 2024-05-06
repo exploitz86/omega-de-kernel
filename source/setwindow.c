@@ -36,12 +36,12 @@ u16 SET_info_buffer [0x200]EWRAM_BSS;
 
 u8* str_A      = (u8*)"   A  ";
 u8*	str_B		   = (u8*)"   B  ";
-u8* str_SELECT = (u8*)"SELECT";
-u8*	str_START	 = (u8*)"START ";
-u8*	str_RIGHT	 = (u8*)"RIGHT ";
-u8*	str_LEFT	 = (u8*)" LEFT ";
-u8* str_UP		 = (u8*)"  UP  ";
-u8*	str_DOWN	 = (u8*)" DOWN ";
+u8* str_SELECT = (u8*)"Select";
+u8*	str_START	 = (u8*)"Start ";
+u8*	str_RIGHT	 = (u8*)"Right ";
+u8*	str_LEFT	 = (u8*)" Left ";
+u8* str_UP		 = (u8*)"  Up  ";
+u8*	str_DOWN	 = (u8*)" Down ";
 u8* str_R		   = (u8*)"   R  ";
 u8* str_L		   = (u8*)"   L  ";
 
@@ -213,10 +213,10 @@ u32 Setting_window(void)
 				//sprintf(msg,"%s",gl_offRTC_powersave);
 				ClearWithBG((u16*)gImage_SET,x_offset+15, y_offset+line_x*7, 6*6, 13, 1);
 				if(gl_ingame_RTC_open_status){
-					sprintf(msg,"%s",gl_ingameRTC_open);
+					sprintf(msg,"%s",gl_enabled);
 				}
 				else {
-					sprintf(msg,"%s",gl_ingameRTC_close);
+					sprintf(msg,"%s",gl_disabled);
 				}			
 				DrawHZText12(msg,0,x_offset+15,y_offset+line_x*7,(RTC_pos==0)?gl_color_selected:gl_color_text,1);	
 	
@@ -1219,7 +1219,6 @@ void save_setw_info(void)
 	SET_info_buffer[assress_show_Thumbnail] = gl_show_Thumbnail;	
 	
 	SET_info_buffer[assress_ingame_RTC_open_status] = gl_ingame_RTC_open_status;
-
 
 	for(address=14;address < assress_max;address++)
 	{

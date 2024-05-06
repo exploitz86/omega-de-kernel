@@ -13,8 +13,18 @@
 #include "draw.h"
 #include "Ezcard_OP.h"
 
+//#include "fw.h"
+
+#include "lang.h"
+
+const u32 image_bin_size2=952016;
+
+
+extern unsigned char ASC_DATA_OLD[];
 
 extern u32 FAT_table_buffer[FAT_table_size/4]EWRAM_BSS;
+
+extern u32 key_L;
 
 extern FIL gfile;
 // --------------------------------------------------------------------
@@ -255,11 +265,36 @@ void IWRAM_CODE SetRompageWithHardReset(u16 page,u32 bootmode)
 {
 	Set_RTC_status(gl_ingame_RTC_open_status);
 	SetRompage(page);
-	RegisterRamReset(RESET_EWRAM|RESET_PALETTE| RESET_VRAM|RESET_OAM |RESET_SIO | RESET_SOUND | RESET_OTHER);
-	if(bootmode==1){
-		HardReset();
+	RegisterRamReset(RESET_PALETTE| RESET_VRAM|RESET_OAM |RESET_SIO | RESET_SOUND | RESET_OTHER);
+	if(bootmode==1) {
+		if(key_L)
+			SoftReset_now();
+		else
+			HardReset();
+	} else if (bootmode==2 || bootmode==4) {
+		int i;
+		//Clear exram up to pogoshell arg
+		u32 *p = (u32*)(0x02000000);
+		for(i=0;i<0xfefe;i++)
+			p[i]=0;
+		// Copy plugin to EWRAM using pogoshell arg's size
+		if (bootmode==2)
+			dmaCopy((u8*)(0x08000000),(u8*)(0x02000000), *(u32 *)(0x0203fbfc) & 0x7ffffff);
+		else if (bootmode==4)
+			LZ77UnCompWram((u8*)(0x08000000),(u8*)(0x02000000));
+		RegisterRamReset(0xfc);
+		((void(*)(void))0x02000000)();
 	}
-	else{
+	else if (bootmode == 3) {
+		int i;
+		//Clear exram up to pogoshell arg
+		u32 *p = (u32*)(0x02000000);
+		for(i=0;i<0xfefe;i++)
+			p[i]=0;
+		//SoftReset_now(0,0x100);
+		SoftReset_now();
+	}
+	else {
 		SoftReset_now();
 	}
 }
@@ -296,7 +331,8 @@ void IWRAM_CODE Save_info(u32 info_offset, u16 * info_buffer,u32 buffersize)
 	vu16* buf = (vu16*)info_buffer ;
 	register u32 loopwrite ;
 	vu16 v1,v2;
-	u16 S71id =  Read_S71NOR_ID();
+	
+	u16 S71id = Read_S71NOR_ID();
 	*((vu16 *)(FlashBase_S71)) = 0xF0 ;	
 	
 	offset= info_offset;//0x7A0000/0x7B0000 ;
@@ -341,7 +377,7 @@ void IWRAM_CODE Save_info(u32 info_offset, u16 * info_buffer,u32 buffersize)
 				*((vu16 *)(FlashBase_S71+offset+loopwrite*32 +2*i )) = buf[loopwrite*16+i];
 			}	
 			*((vu16 *)(FlashBase_S71+offset+loopwrite*32)) = 0x29;
-			
+
 			do
 			{
 				v1 = *((vu16 *)(FlashBase_S71+offset+loopwrite*32));
@@ -477,27 +513,33 @@ void IWRAM_CODE Set_64MROM_flag(u16  flag)
 	*(u16 *)0x9fc0000 = 0x1500;
 }
 // --------------------------------------------------------------------
+
 void IWRAM_CODE FW_update(u16 DEcard_FW_readver,u16 FW_built_in_ver,void* FWbinaddress,u32 FWsize,u32 build_crc32,u32 FW_wirte_address)
 {
+	ASC_DATA = ASC_DATA_OLD;
 	vu16 busy;
 	vu32 offset;
 	u32 offset_Y = 5;
 	u32 line_x = 17;
 	char msg[100];
-	
+
+	//DEBUG_printf("Current_FW_ver %x ",Current_FW_ver);	
 	Clear(0, 0, 240, 160, RGB(0,18,24), 1);
 	
 	sprintf(msg,"Rev.%s FIRMWARE UPDATE",((DEcard_FW_readver&0xA000)==0xA000)? "B":"A");
-	DrawHZText12(msg,0,57,offset_Y+0*line_x, 0x7FFF,1);	
+	DrawHZText12(msg,0,57,offset_Y+0*line_x, 0x7FFF,1);
 	
-	u32 get_crc32 = crc32( FWbinaddress, FWsize);
+	//u32 get_crc32 = crc32( image, image_bin_size2);
 	//DEBUG_printf("get_crc32 %x ",get_crc32);
 	
-	if(get_crc32 != build_crc32)
+	//if(get_crc32 != 0x480D0853) //fw1 
+	//if(get_crc32 != 0xA07D712F) //fw2
+	//if(get_crc32 != 0x3DA3D970) //fw3
+	/*if(get_crc32 != 0x76352215) //fw4
 	{
-			sprintf(msg,"check crc32 error!");		
+			sprintf(msg,"CRC32 checksum error!");		
 			DrawHZText12(msg,0,2,offset_Y+1*line_x, RGB(31,00,00),1);
-			sprintf(msg,"press [B] to return");
+			sprintf(msg,"Press (B) to return");
 			DrawHZText12(msg,0,2,offset_Y+2*line_x, 0x7FFF,1);	
 			while(1)
 			{
@@ -510,18 +552,19 @@ void IWRAM_CODE FW_update(u16 DEcard_FW_readver,u16 FW_built_in_ver,void* FWbina
 					return;
 				}
 			}		
-	}
+	}*/
 
 	sprintf(msg,"Current firmware version: V%02d",DEcard_FW_readver&0xFF);
 	DrawHZText12(msg,0,2,offset_Y+1*line_x, 0x7FFF,1);	
 	
-	sprintf(msg,"Will be updated to version: V%02d",FW_built_in_ver);
-	DrawHZText12(msg,0,2,offset_Y+2*line_x, 0x7FFF,1);	
+	sprintf(msg,"Please use the OFFICIAl kernel to",FW_built_in_ver);
+	DrawHZText12(msg,0,2,offset_Y+3*line_x, 0x7FFF,1);	
 
-	sprintf(msg,"Press [A] to update");
-	DrawHZText12(msg,0,2,offset_Y+4*line_x, 0x7FFF,1);	
-	sprintf(msg,"Press [B] to cancel");
-	DrawHZText12(msg,0,2,offset_Y+5*line_x, 0x7FFF,1);	
+	sprintf(msg,"update firmware. Sorry.",FW_built_in_ver);
+	DrawHZText12(msg,0,2,offset_Y+4*line_x, 0x7FFF,1);
+	
+	sprintf(msg,"Press (B) to skip.",FW_built_in_ver);
+	DrawHZText12(msg,0,2,offset_Y+6*line_x, 0x7FFF,1);	
 	
 	while(1)
 	{
@@ -531,11 +574,12 @@ void IWRAM_CODE FW_update(u16 DEcard_FW_readver,u16 FW_built_in_ver,void* FWbina
 		u16 keys = keysDown();
 				
 		if (keys & KEY_A) {
+			
 			SPI_Write_Disable();
 			Clear(2, offset_Y+4*line_x,220,15,RGB(0,18,24),1);	
 			Clear(2, offset_Y+5*line_x,220,15,RGB(0,18,24),1);	
 		
-			sprintf(msg,"progress:");		
+			sprintf(msg,"Progress:");		
 			DrawHZText12(msg,0,2,offset_Y+6*line_x, 0x7FFF,1);
 									
 			for(offset = 0x0000;offset<FWsize;offset+=256)
@@ -547,7 +591,7 @@ void IWRAM_CODE FW_update(u16 DEcard_FW_readver,u16 FW_built_in_ver,void* FWbina
 				
 				FAT_table_buffer[0] = (FW_wirte_address + offset);//omega DE 0x80000
 				
-				dmaCopy(FWbinaddress+offset,&FAT_table_buffer[1],256);  
+				dmaCopy(FWbinaddress+offset,&FAT_table_buffer[1],256);   
 				Send_FATbuffer(FAT_table_buffer,2); 
 								   
 				SPI_Write_Enable();
@@ -560,11 +604,12 @@ void IWRAM_CODE FW_update(u16 DEcard_FW_readver,u16 FW_built_in_ver,void* FWbina
 				//DEBUG_printf("count %x ",count);
 				//break;								
 			}		
-			sprintf(msg,"update finished,power off manual");
+			sprintf(msg,"Update finished, power off the console.");
 			DrawHZText12(msg,0,2,offset_Y+8*line_x, 0x7FFF,1);	
 			
 			while(1);
 			break;
+			
 		}	
 		else if (keys & KEY_B) {
 			break;
