@@ -1721,7 +1721,7 @@ void IWRAM_CODE make_pogoshell_arguments(TCHAR *cmdname, TCHAR *filename, u32 cm
 	// Passed in 32KB aligned
 	offset = offset + 0x08000000 + 8;
 
-	p = pReadCache;
+	p = (u32*)pReadCache;
 
 	// Magic value in ROM address space
 	*p++ = 0xFAB0BABE;
@@ -1747,7 +1747,7 @@ u32 IWRAM_CODE LoadEMU2PSRAM(TCHAR *filename,u32 is_EMU)
 	UINT  ret;
 	u32 filesize;
 	u32 res;
-	u32 blocknum, blockoffset = gl_error_0;
+	u32 blocknum, blockoffset = 0;
 	char msg[20];
 	
 	u32 Address;
@@ -2620,7 +2620,7 @@ re_showfile:
 	    	if(page_num==NOR_list)
 	    	{
 					Refresh_filename_NOR(show_offset,file_select,updata);
-					ClearWithBG(gImage_NOR,185, 0, 30, 18, 1);
+					ClearWithBG((u16*)gImage_NOR,185, 0, 30, 18, 1);
 	    	}
 	    	else
 	    	{
